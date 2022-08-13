@@ -1,12 +1,15 @@
 #!/usr/bin/env bash
 set -eu
+set -vx
 
 restart_agent() {
     test -f url || return
     test -f pid && kill $(cat pid)
     test -f token.running && ./config.sh remove --token $(cat token.running)
     mv token token.running
-    ./config.sh --url $(cat url) --token $(cat token.running)
+
+    name=$(cat name) || name=$(hostname)
+    ./config.sh --url $(cat url) --token $(cat token.running) --name $name --unattended
 
     (
         while true
@@ -24,7 +27,7 @@ run_watchdog() {
     do
         sleep 1
         test -f token || continue
-        restart_agent
+        restart_agent || true
     done
 }
 
