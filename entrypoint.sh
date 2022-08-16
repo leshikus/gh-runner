@@ -11,13 +11,11 @@ restart_agent() {
     name=$(cat name) || name=$(hostname)
     ./config.sh --url $(cat url) --token $(cat token.running) --name $name --unattended
 
-    (
-        while true
-        do
-            sleep 10
-            ./run.sh
-        done
-    ) &
+    while true
+    do
+        sleep 11
+        ./run.sh
+    done &
     echo $! >pid
 }
 
@@ -25,7 +23,7 @@ run_watchdog() {
     cd /build-runner
     while true
     do
-        sleep 1
+        sleep 10
         test -f token || continue
         restart_agent || true
     done
