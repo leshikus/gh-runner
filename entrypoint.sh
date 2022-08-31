@@ -8,10 +8,10 @@ run_agent() {
     while true
     do
         sleep 10
-        test -f .credentials || continue
+        test -f .runner || continue
         ./run.sh &
         echo $! >pid
-        wait $!
+        wait $! || true
     done
 }
 
