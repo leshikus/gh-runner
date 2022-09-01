@@ -23,13 +23,7 @@ sed -e "s/#DOCKER_GID#/$gid/g; s/#RUNNER_VERSION#/$gversion/g" Dockerfile.orig >
 
 docker build -t ci .
 
-umount /tmp/build-runner-work || true
-mkdir -p /tmp/build-runner-work
-sudo chown 1001:1001 /tmp/build-runner-work
-sudo mount -t tmpfs -o size=4G tmpfs /tmp/build-runner-work
-
 device=$(find /dev -name 'nvidia*' -type c | awk '{ print " --device "$1":"$1 }')
 
-docker run -v /var/run/docker.sock:/var/run/docker.sock -v /tmp/build-runner-work:/build-runner/_work $device -t ci
+docker run -v /var/run/docker.sock:/var/run/docker.sock $device -t ci
 
-umount /tmp/build-runner-work || true
