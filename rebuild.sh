@@ -1,7 +1,7 @@
 #!/bin/sh
 
 set -e
-set -vx
+#set -vx
 
 mkdir -p ~/.docker/ ~/volume
 touch ~/.docker/config.json
@@ -16,7 +16,7 @@ cd $(dirname "$0")
     id=$(docker ps | awk '($2 == "ci") { print $1 }')
     sh -$- unregister.sh $id
     docker stop $id
-    docker container prune -f
+    sh -$- clean.sh
 } || true
 
 sed -e "s/#DOCKER_GID#/$gid/g; s/#RUNNER_VERSION#/$gversion/g" Dockerfile.orig >Dockerfile
@@ -25,5 +25,6 @@ docker build -t ci .
 
 device=$(find /dev -name 'nvidia*' -type c | awk '{ print " --device "$1":"$1 }')
 
-docker run -v /var/run/docker.sock:/var/run/docker.sock $device -t ci
+docker run -v /var/run/docker.sock:/var/run/docker.sock $device -t ci &
+disown
 
