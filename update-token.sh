@@ -3,13 +3,13 @@
 set -e
 set -vx
 
-url="$1"
-token="$2"
+CI_DOCKER="$1"
+url="$2"
+token="$3"
 
 unregister_runner() {
     test -f token || return 0
     test -f .runner || return 0
-
 }
 
 register_runner() {
@@ -18,7 +18,7 @@ register_runner() {
 }
 
 test -n "$token"
-id=$(docker ps | awk '($2 == "ci") { print $1 }')
+id=$(docker ps | awk "(\$2 == \"$CI_DOCKER\") { print \$1 }")
 
 sh -$- unregister.sh "$id"
 register_runner

@@ -1,9 +1,11 @@
 #!/bin/sh
 
 set -e
-#set -vx
 
-mkdir -p ~/.docker/ ~/volume
+test -n "$CI_DOCKER"
+exec 1>"$CI_DOCKER".log 2>&1
+
+mkdir -p ~/.docker
 touch ~/.docker/config.json
 cp ~/.docker/config.json .
 
@@ -13,7 +15,7 @@ gversion=$(curl -X HEAD -i https://github.com/actions/runner/releases/latest | a
 cd $(dirname "$0")
 
 {
-    id=$(docker ps | awk '($2 == "ci") { print $1 }')
+    id=$(docker ps | awk "(\$2 == \"$CI_DOCKER\") { print \$1 }")
     sh -$- unregister.sh $id
     docker stop $id
     sh -$- clean.sh
@@ -21,10 +23,9 @@ cd $(dirname "$0")
 
 sed -e "s/#DOCKER_GID#/$gid/g; s/#RUNNER_VERSION#/$gversion/g" Dockerfile.orig >Dockerfile
 
-docker build -t ci .
+docker build -t $CI_DOCKER .
 
 device=$(find /dev -name 'nvidia*' -type c | awk '{ print " --device "$1":"$1 }')
 
-docker run -v /var/run/docker.sock:/var/run/docker.sock $device -t ci &
-disown
+docker run -v /var/run/docker.sock:/var/run/docker.sock $device -t $CI_DOCKER &
 
