@@ -6,6 +6,7 @@ set -vx
 CI_DOCKER="$1"
 url="$2"
 token="$3"
+label=${4:-docker}
 
 unregister_runner() {
     test -f token || return 0
@@ -14,7 +15,7 @@ unregister_runner() {
 
 register_runner() {
     echo $token >token
-    docker exec -t $id sh -c "cd /build-runner && ./config.sh --labels docker --url $url --token $token --unattended && kill \$(cat pid) || true"
+    docker exec -t $id sh -c "cd /build-runner && ./config.sh --labels $label --url $url --token $token --unattended && kill \$(cat pid) || true"
 }
 
 test -n "$token"
