@@ -15,7 +15,7 @@ unregister_runner() {
 
 register_runner() {
     echo $token >token
-    docker exec -t $id sh -c "cd /build-runner && ./config.sh --labels $label --url $url --token $token --unattended && kill \$(cat pid) || true"
+    docker exec -t $id sh -c "cd /build-runner && ./config.sh --name $label --labels $label --url $url --token $token --unattended && kill \$(cat pid) || true"
 }
 
 test -n "$token"
