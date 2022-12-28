@@ -11,6 +11,8 @@ run_agent() {
         test -f .runner || continue
         ./run.sh &
         echo $! >pid
+        echo PID $(cat pid)
+        ps --pid $(cat pid)
         wait $! || true
     done
 }

@@ -6,16 +6,12 @@ RUN groupadd -g #DOCKER_GID# docker
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
-    ca-certificates \
     curl \
-    libicu-dev \
     git \
     wget \
-    jq \
-    bzip2 \
     tar \
-    binutils \
-    docker.io
+    docker.io \
+    python3-pip
 
 WORKDIR /build-runner
 
