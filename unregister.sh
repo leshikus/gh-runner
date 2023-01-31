@@ -3,10 +3,9 @@
 set -e
 set -vx
 
-id="$1"
-test -n "$id"
+name="$1"
+test -n "$name"
 
-test -f token || exit 0
-docker exec -t $id sh -c "cd /build-runner; ./config.sh remove --token "$(cat token) || true
-rm token
+test -f "$name".token || exit 0
+docker exec -t $name sh -c "cd /build-runner; ./config.sh remove --token "$(cat "$name".token) || true
 

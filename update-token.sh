@@ -3,24 +3,17 @@
 set -e
 set -vx
 
-CI_DOCKER="$1"
-url="$2"
-token="$3"
-label=${4:-docker}
+test -n "$CI_DOCKER"
+name=$(echo $CI_DOCKER | tr / .)
+test -f "$name".token
 
-unregister_runner() {
-    test -f token || return 0
-    test -f .runner || return 0
-}
+url=https://github.com/$(echo "$CI_DOCKER" | sed -e 's#/[^/]*$##')
 
 register_runner() {
-    echo $token >token
-    docker exec -t $id sh -c "cd /build-runner && ./config.sh --name $label --labels $label --url $url --token $token --unattended && kill \$(cat pid) || true"
+    token=$(cat "$name".token)
+    docker exec -t $name sh -c "cd /build-runner && ./config.sh --name $name --labels $name --url $url --token $token --unattended && kill \$(cat pid) || true"
 }
 
-test -n "$token"
-id=$(docker ps | awk "(\$2 == \"$CI_DOCKER\") { print \$1 }")
-
-sh -$- unregister.sh "$id"
+sh -$- unregister.sh "$name"
 register_runner
 
