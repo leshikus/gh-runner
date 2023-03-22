@@ -11,8 +11,7 @@ RUN apt-get update \
     wget \
     tar \
     docker.io \
-    libicu-dev \
-    python3-pip
+    libicu-dev
 
 WORKDIR /build-runner
 
