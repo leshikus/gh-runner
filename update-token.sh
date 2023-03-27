@@ -13,9 +13,8 @@ register_runner() {
     token=$(cat "$name".token)
     internal_pid=$(docker exec $name cat pid || true)
     docker exec -t $name sh -c "cd /build-runner && ./config.sh --name $name --labels $name --url $url --token $token --unattended || true"
-    test ! -z "$internal_pid" && docker exec -t $name kill $internal_pid
+    test ! -z "$internal_pid" && docker exec -t $name kill $internal_pid || true
 }
 
 sh -$- unregister.sh "$name"
 register_runner
-
