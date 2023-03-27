@@ -2,7 +2,7 @@
 
 The Dockerfile used to build a self-hosted runner
 
-## Add new runner
+## Add a new runner
 
 In this example, we add a new runner 'leshikus.gh-runner.test' for the leshikus/gh-runner repo.
 Please use your own path.
@@ -11,7 +11,7 @@ Please use your own path.
 
 This will build the image and run the runner. However, before you go, you have to add the runner instance to your repo.
 
-## Update runner token
+## Update the runner token
 
 Go to `Settings => Runners` for your repo, add new runner, copy the token
 
