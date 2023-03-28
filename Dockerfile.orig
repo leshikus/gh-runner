@@ -11,7 +11,8 @@ RUN apt-get update \
     wget \
     tar \
     docker.io \
-    libicu-dev
+    libicu-dev \
+    ca-certificates
 
 WORKDIR /build-runner
 

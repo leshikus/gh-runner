@@ -30,5 +30,5 @@ docker build -t $CI_DOCKER .
 
 device=$(find /dev -type c \( -name 'nvidia*' -or -name renderD128 \) | awk '{ print " --device "$1":"$1 }')
 
-docker run --hostname $HOSTNAME --restart unless-stopped -v /var/run/docker.sock:/var/run/docker.sock $device -t --name $name $CI_DOCKER &
+docker run --hostname $(hostname) --restart unless-stopped -v /var/run/docker.sock:/var/run/docker.sock $device -t --name $name $CI_DOCKER &
 
