@@ -6,11 +6,12 @@ Usage:
     run.sh [OPTIONS] runner_name
         runner_name  should contain a name of a repository, e.g. leshikus/gh-runner/test
 Options:
-    -r|--rebuild        rebuild docker image
-    -r|--token [TOKEN]  a token for registration
+    -t|--token [TOKEN]  use a token for registration
+    -nr|--no-rebuild    do not rebuild the contaner
+    -r|--remove         unregister the runner and remove the container
 
 
 ## How to get the runner token
 
-Go to `Settings => Runners` for your repo, add new runner, copy the token
+Go to `Settings => Runners` for your repo, add new runner, copy the token.
 
