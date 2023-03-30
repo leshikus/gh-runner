@@ -16,3 +16,11 @@ Options:
 
 Go to `Settings => Runners` for your repo, add new runner, copy the token.
 
+
+## How to browse logs
+
+For an example container `leshikus/gh-runner/test` logs can be viewed via
+    `view /tmp/$USER/gh-runner/leshikus.gh-runner.test/logs`
+    and `docker logs leshikus.gh-runner.test`
+
+
