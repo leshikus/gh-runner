@@ -17,7 +17,7 @@ parse_params() {
                 shift
                 ;;
             -r|--remove)
-                remove_docker=true
+                remove_runner=true
                 shift
                 ;;
             -h|--help)
@@ -69,6 +69,7 @@ parse_params() {
             echo "Missed a github registration token"
             exit 1
         fi
+        echo "$token" >"$tmp_dir"/token
     fi
 }
 
@@ -100,7 +101,7 @@ clean_docker() {
 }
 
 build_docker() {
-    test -z "$norebuild_docker" || return
+    test -z "$norebuild_docker" || return 0
 
     clean_docker
     create_docker_proxy
@@ -119,19 +120,25 @@ build_docker() {
 }
 
 register_runner() {
-    if test -n "$token"
+    if test -f "$tmp_dir"/.runner
     then
-        docker exec -t "$name" sh -c "cd /build-runner && ./config.sh --name $name --labels $name --url $url --token $token --unattended"
-        docker cp "$name":/build-runner/.runner "$name":/build-runner/.credentials "$name":/build-runner/.credentials_rsaparams "$tmp_dir"/
+        for f in .runner .credentials .credentials_rsaparams
+        do
+            docker cp "$tmp_dir"/"$f" "$name":/build-runner/
+        done
     else
-        docker cp "$tmp_dir"/.runner "$tmp_dir"/.credentials "$tmp_dir"/.credentials_rsaparams "$tmp_dir"/ "$name":/build-runner/
+        docker exec -u ghrunner -t "$name" sh -c "cd /build-runner && ./config.sh --name $name --labels $name --url $url --token $token --unattended"
+        for f in .runner .credentials .credentials_rsaparams
+        do
+            docker cp "$name":/build-runner/"$f" "$tmp_dir"/
+        done
     fi
 }
 
 remove_runner() {
-    docker exec -t $name sh -c "cd /build-runner; ./config.sh remove --token $token"
+    docker exec -u ghrunner -t "$name" sh -c "cd /build-runner; ./config.sh remove --token $token" || true
     clean_docker
-    rm "$tmp_dir"/token
+    rm "$tmp_dir"/token "$tmp_dir"/.runner
 }
 
 set -e
@@ -139,7 +146,7 @@ cd $(dirname "$0")
 
 parse_params "$@"
 
-if test -z "$remove_runner"
+if test -n "$remove_runner"
 then
     remove_runner
     exit 0
