@@ -49,7 +49,8 @@ parse_params() {
     fi
 
     tmp_dir="/tmp/$USER/gh-runner/$name"
-    mkdir -p "$tmp_dir"
+    mkdir -p "$tmp_dir"/build-runner
+    chmod 777 "$tmp_dir"/build-runner
 
     date >"$tmp_dir"/log  
     tail -f "$tmp_dir"/log &
@@ -110,35 +111,24 @@ build_docker() {
     gversion=$(curl --head -i https://github.com/actions/runner/releases/latest | awk '/^[lL]ocation: / { gsub(/.*v/, ""); gsub(/[^0-9]*$/, ""); print }')
     
     sed -e "s/#DOCKER_GID#/$gid/g; s/#RUNNER_VERSION#/$gversion/g" Dockerfile.orig >"$tmp_dir"/Dockerfile
-    cp entrypoint.sh "$tmp_dir"
+    cp entrypoint.sh "$tmp_dir"/build-runner
     docker build -t "$iname" "$tmp_dir"
 
     device=$(find /dev -type c -name 'nvidia*' | awk '{ print " --device "$1":"$1 }')
     test ! -d /dev/dri || device="$device --device /dev/dri:/dev/dri"
     
-    docker run -d --hostname $(hostname) --restart unless-stopped -v /var/run/docker.sock:/var/run/docker.sock $device -t --name $name $iname
+    docker run -d --hostname $(hostname) --restart unless-stopped -v "$tmp_dir"/build-runner:/build-runner -v /var/run/docker.sock:/var/run/docker.sock $device -t --name $name $iname
 }
 
 register_runner() {
-    if test -f "$tmp_dir"/.runner
-    then
-        for f in .runner .credentials .credentials_rsaparams
-        do
-            docker cp "$tmp_dir"/"$f" "$name":/build-runner/
-        done
-    else
+    test -f "$tmp_dir"/.runner || \
         docker exec -u ghrunner -t "$name" sh -c "cd /build-runner && ./config.sh --name $name --labels $name --url $url --token $token --unattended"
-        for f in .runner .credentials .credentials_rsaparams
-        do
-            docker cp "$name":/build-runner/"$f" "$tmp_dir"/
-        done
-    fi
 }
 
 remove_runner() {
     docker exec -u ghrunner -t "$name" sh -c "cd /build-runner; ./config.sh remove --token $token" || true
     clean_docker
-    rm "$tmp_dir"/token "$tmp_dir"/.runner
+    rm -f "$tmp_dir"/token "$tmp_dir"/.runner
 }
 
 set -e
