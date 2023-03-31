@@ -13,7 +13,7 @@ parse_params() {
                 shift 2
                 ;;
             -nr|--no-rebuild)
-                norebuild_docker=true
+                dont_rebuild_docker=true
                 shift
                 ;;
             -r|--remove)
@@ -24,24 +24,30 @@ parse_params() {
                 cat README.md
                 exit 0
                 ;;
+            -s|--skip-check)
+                skip_sanity_check=true
+                shift
+                ;;
             -*)
                 echo "Unknown option $1"
                 exit 1
                 ;;
             *)
                 iname="$1"
-                url=https://github.com/$(echo "$iname" | sed -e 's#/[^/]*$##')
-                name=$(echo "$iname" | tr / .)
-                if ! git ls-remote "$url" 1>/dev/null
-                then
-                    echo "Invalid git repo $url from image $iname"
-                    exit 1
-                fi
                 shift
                 ;;
         esac
     done
    
+    url=https://github.com/$(echo "$iname" | sed -e 's#/[^/]*$##')
+    name=$(echo "$iname" | tr / .)
+    test -n "$skip_sanity_check" || \
+        if ! git ls-remote "$url" 1>/dev/null
+        then
+            echo "Invalid git repo $url from image $iname"
+            exit 1
+        fi
+
     if test -z "$name"
     then
         echo "Missed a runner name"     
@@ -75,6 +81,9 @@ parse_params() {
 }
 
 create_docker_proxy() {
+    HTTP_PROXY=${HTTP_PROXY:-$http_proxy}
+    HTTPS_PROXY=${HTTPS_PROXY:-$https_proxy}
+
     mkdir -p ~/.docker
     test -z "$HTTPS_PROXY" || cat <<EOF >~/.docker/config.json
 {
@@ -102,7 +111,7 @@ clean_docker() {
 }
 
 build_docker() {
-    test -z "$norebuild_docker" || return 0
+    test -z "$dont_rebuild_docker" || return 0
 
     clean_docker
     create_docker_proxy

@@ -10,6 +10,7 @@ Options:
     -t|--token [TOKEN]  use the token for registration
     -nr|--no-rebuild    do not rebuild the contaner
     -r|--remove         unregister the runner and remove the container
+    -s|--skip-check     skip runner_name sanity check
 ```
 
 ## How to get the runner token
