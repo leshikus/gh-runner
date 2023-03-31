@@ -14,7 +14,7 @@ Options:
 
 ## How to get the runner token
 
-Go to `Settings => Runners` for your repo, add new runner, copy the token.
+Go to `Settings => Runners` for your repo, add a new runner, copy the token.
 
 
 ## How to browse logs
