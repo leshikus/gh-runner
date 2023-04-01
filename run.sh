@@ -55,8 +55,7 @@ parse_params() {
     fi
 
     tmp_dir="/tmp/$USER/gh-runner/$name"
-    mkdir -p "$tmp_dir"/build-runner
-    chmod 777 "$tmp_dir"/build-runner
+    mkdir -p "$tmp_dir"/credentials
 
     date >"$tmp_dir"/log  
     tail -f "$tmp_dir"/log &
@@ -126,21 +125,18 @@ build_docker() {
     device=$(find /dev -type c -name 'nvidia*' | awk '{ print " --device "$1":"$1 }')
     test ! -d /dev/dri || device="$device --device /dev/dri:/dev/dri"
     
-    docker run -d --hostname $(hostname) --restart unless-stopped -v /var/run/docker.sock:/var/run/docker.sock $device -t --name $name $iname
+    docker run -d --hostname $(hostname) --restart unless-stopped \
+        -v /var/run/docker.sock:/var/run/docker.sock \
+        $device -t --name $name $iname
 }
 
 register_runner() {
-    if test -f "$tmp_dir"/.runner
+    if ! test -f "$tmp_dir"/credentials/.runner
     then
-        for f in .runner .credentials .credentials_rsaparams
-        do
-            docker cp "$tmp_dir"/"$f" "$name":/build-runner/
-        done
-    else
         docker exec -u ghrunner -t "$name" sh -c "cd /build-runner && ./config.sh --name $name --labels $name --url $url --token $token --unattended"
         for f in .runner .credentials .credentials_rsaparams
         do
-            docker cp "$name":/build-runner/"$f" "$tmp_dir"/
+            docker cp "$name":/build-runner/"$f" "$tmp_dir"/credentials
         done
     fi
 }
