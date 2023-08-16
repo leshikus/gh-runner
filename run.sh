@@ -5,6 +5,8 @@ parse_params() {
     test -n "$USER" || USER="$LOGNAME"
     test -n "$USER"
 
+    script_dir=$(dirname "$0")
+    docker_context="$script_dir"
     while test -n "$1"
     do
         case "$1" in
@@ -27,6 +29,10 @@ parse_params() {
             -s|--skip-check)
                 skip_sanity_check=true
                 shift
+                ;;
+            -c|--context)
+                docker_context="$2"
+                shift 2
                 ;;
             -*)
                 echo "Unknown option $1"
@@ -77,6 +83,8 @@ parse_params() {
         fi
         echo "$token" >"$tmp_dir"/token
     fi
+
+    cp "$docker_context"/Dockerfile.orig "$tmp_dir"
 }
 
 create_docker_proxy() {
@@ -104,7 +112,7 @@ EOF
 
 clean_docker() {
     docker container prune -f --filter "until=48h"
-    none_images=$(docker images | awk '/^<none> +<none>/ { print $3}')
+    none_images=$(docker images | awk '/^<none> +<none>/ { print $3 }')
     test -z "$none_images" || docker rmi -f $none_images
     docker rm -f "$name" || true
 }
@@ -148,9 +156,10 @@ remove_runner() {
 }
 
 set -e
-cd $(dirname "$0")
 
 parse_params "$@"
+
+cd "$script_dir"
 
 if test -n "$remove_runner"
 then

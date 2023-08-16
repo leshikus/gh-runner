@@ -11,6 +11,7 @@ Options:
     -nr|--no-rebuild    do not rebuild the contaner
     -r|--remove         unregister the runner and remove the container
     -s|--skip-check     skip runner_name sanity check
+    -c|--context        a directory with a custom `Dockerfile.orig`
 ```
 
 ## How to get the runner token
