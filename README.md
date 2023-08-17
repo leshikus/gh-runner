@@ -8,6 +8,7 @@ Usage:
         runner_name  should contain a name of the repository, e.g. leshikus/gh-runner/test
 Options:
     -t|--token [TOKEN]  use the token for registration
+    -l|--label [LABEL]  mark the runner with the label instead of the name
     -nr|--no-rebuild    do not rebuild the contaner
     -r|--remove         unregister the runner and remove the container
     -s|--skip-check     skip runner_name sanity check

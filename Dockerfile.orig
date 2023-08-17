@@ -2,8 +2,6 @@ FROM ubuntu:latest
 
 ENV DEBIAN_FRONTEND="noninteractive"
 
-RUN groupadd -g #DOCKER_GID# docker
-
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
     curl \
@@ -14,21 +12,3 @@ RUN apt-get update \
     libicu-dev \
     ca-certificates
 
-WORKDIR /build-runner
-
-RUN useradd -m --uid 1001 ghrunner
-RUN chown ghrunner:ghrunner /build-runner
-RUN usermod -aG docker ghrunner
-
-USER ghrunner
-
-RUN mkdir -p /home/ghrunner/.docker
-COPY config.json /home/ghrunner/.docker/
-
-RUN curl -o actions-runner-linux-x64-#RUNNER_VERSION#.tar.gz -L https://github.com/actions/runner/releases/download/v#RUNNER_VERSION#/actions-runner-linux-x64-#RUNNER_VERSION#.tar.gz
-
-RUN tar xzf actions-runner-linux-x64-#RUNNER_VERSION#.tar.gz
-
-COPY --chown=ghrunner:ghrunner entrypoint.sh credentials/.* ./
-
-ENTRYPOINT ["bash", "/build-runner/entrypoint.sh"]
