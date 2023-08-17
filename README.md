@@ -13,6 +13,7 @@ Options:
     -r|--remove         unregister the runner and remove the container
     -s|--skip-check     skip runner_name sanity check
     -c|--context        a directory with a custom `Dockerfile.orig`
+    -v|--verbose        add a debug output
 ```
 
 ## How to get the runner token

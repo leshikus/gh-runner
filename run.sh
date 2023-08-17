@@ -43,6 +43,10 @@ parse_params() {
                 become_root="--env RUNNER_ALLOW_RUNASROOT=1"
                 shift
                 ;;
+            -v|--verbose)
+                set -vx
+                shift
+                ;;
             -h|--help)
                 cat "$script_dir"/README.md
                 exit 0
@@ -147,7 +151,6 @@ dockerfile_add_docker() {
 
     create_docker_proxy
     cat <<EOF >>"$agent_dir"/Dockerfile
-USER root
 RUN groupadd -g $gid docker && \
     usermod -aG docker ghrunner
 
@@ -156,6 +159,8 @@ USER ghrunner
 RUN mkdir -p /runner/.docker
 
 COPY config.json /runner/.docker/
+
+USER root
 EOF
 }
 
@@ -183,8 +188,7 @@ EOF
 }
 
 generate_dockerfile() {
-    cp "$agent_dir"/Dockerfile.orig "$agent_dir"/Dockerfile
-
+    grep '^FROM ' "$agent_dir"/Dockerfile.orig >"$agent_dir"/Dockerfile
     dockerfile_add_user
 
     mount_docker_sock=
@@ -193,6 +197,7 @@ generate_dockerfile() {
         mount_docker_sock="-v /var/run/docker.sock:/var/run/docker.sock"
         dockerfile_add_docker
     fi
+    grep -v '^FROM ' "$agent_dir"/Dockerfile.orig >>"$agent_dir"/Dockerfile
 
     mount_vagrant=
     if fgrep -q vagrant "$agent_dir"/Dockerfile.orig
@@ -231,7 +236,7 @@ build_docker() {
 
 register_runner() {
     test ! -f "$agent_dir"/creds/.runner || return 0
-    docker exec -u ghrunner -t "$name" sh -c "./config.sh --name $name --labels $runner_label --url $url --token $token --unattended --replace"
+    docker exec -u ghrunner -t "$name" ./config.sh --name $name --labels $runner_label --url $url --token $token --unattended --replace
     for f in .runner .credentials .credentials_rsaparams
     do
         docker cp "$name":/runner/"$f" "$agent_dir"/creds
@@ -239,7 +244,7 @@ register_runner() {
 }
 
 remove_runner() {
-    docker exec -u ghrunner -t "$name" sh -c "./config.sh remove --token $token" || true
+    docker exec -u ghrunner -t "$name" ./config.sh remove --token $token || true
     clean_docker
     rm -f "$agent_dir"/token "$agent_dir"/creds/.runner
 }
