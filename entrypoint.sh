@@ -1,9 +1,9 @@
 #!/bin/sh
 
 set -eu
+#set -vx
 
 run_agent() {
-    cd /build-runner
     while true
     do
         sleep 10
