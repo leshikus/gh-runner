@@ -12,6 +12,8 @@ parse_params() {
 
     script_dir=$(dirname "$0")
     docker_context="$script_dir"
+    runner_label=
+
     while test -n "$1"
     do
         case "$1" in
@@ -32,7 +34,7 @@ parse_params() {
                 shift
                 ;;
             -l|--labels)
-                runner_label="$2"
+                runner_label="$runner_label,$2"
                 shift 2
                 ;;
             -c|--context)
@@ -70,6 +72,7 @@ parse_params() {
         then
             die "invalid git repo $url from image $iname"
         fi
+    runner_label="$name$runner_label"
 
     agent_dir="$HOME/.config/gh-runner/$name"
     mkdir -p "$agent_dir"/creds
@@ -94,8 +97,6 @@ parse_params() {
         fi
         echo "$token" >"$agent_dir"/token
     fi
-
-    test -n "$runner_label" || runner_label="$name"
 
     if test -f "$docker_context"
     then
