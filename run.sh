@@ -182,7 +182,7 @@ EOF
 dockerfile_add_entrypoint() {
     cat <<EOF >>"$agent_dir"/Dockerfile
 USER ghrunner
-COPY entrypoint.sh /runner
+COPY --chown=ghrunner:ghrunner entrypoint.sh creds/.* /runner
 
 ENTRYPOINT ["/runner/entrypoint.sh"]
 EOF
