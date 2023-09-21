@@ -188,6 +188,15 @@ ENTRYPOINT ["/runner/entrypoint.sh"]
 EOF
 }
 
+dockerfile_add_group() {
+    cat <<EOF >>"$agent_dir"/Dockerfile
+USER root
+RUN groupadd -g $@
+USER ghrunner
+EOF
+}
+
+
 generate_dockerfile() {
     grep '^FROM ' "$agent_dir"/Dockerfile.orig >"$agent_dir"/Dockerfile
     dockerfile_add_user
@@ -209,6 +218,14 @@ generate_dockerfile() {
 
     dockerfile_add_agent
     dockerfile_add_entrypoint
+
+    mount_devices=$(find /dev -type c -name 'nvidia*' | awk '{ print " --device "$1":"$1 }')
+    test ! -d /dev/dri || {
+        mount_device="$mount_devices --device /dev/dri:/dev/dri"
+        gid=$(getent group render | awk -F : '{ print $3 }')
+        dockerfile_add_group "$gid" render
+    }
+
     test -z "$become_root" || echo "USER root" >>"$agent_dir"/Dockerfile
 }
 
@@ -222,9 +239,6 @@ build_docker() {
 
     docker build -t "$iname" "$agent_dir"
 
-    mount_devices=$(find /dev -type c -name 'nvidia*' | awk '{ print " --device "$1":"$1 }')
-    test ! -d /dev/dri || mount_device="$mount_devices --device /dev/dri:/dev/dri"
-    
     docker run -d --network host \
         --restart unless-stopped \
         --hostname $name \
