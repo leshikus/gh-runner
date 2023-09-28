@@ -151,7 +151,6 @@ dockerfile_add_docker() {
 
     gid=$(stat -c "%g" /var/run/docker.sock)
 
-    create_docker_proxy
     cat <<EOF >>"$agent_dir"/Dockerfile
 RUN groupadd -g $gid docker && \
     usermod -aG docker ghrunner
@@ -238,6 +237,7 @@ build_docker() {
 
     cp entrypoint.sh "$agent_dir"
 
+    create_docker_proxy
     docker build -t "$iname" "$agent_dir"
 
     docker run -d --network host \
