@@ -76,6 +76,7 @@ parse_params() {
 
     agent_dir="$HOME/.config/gh-runner/$name"
     mkdir -p "$agent_dir"/creds
+    touch "$agent_dir"/creds/.placeholder
 
     date >"$agent_dir"/log  
     tail -f "$agent_dir"/log &
