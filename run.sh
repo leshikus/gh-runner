@@ -5,6 +5,48 @@ die() {
     exit 1
 }
 
+
+dockerfile_before_context() {
+    local gid
+
+    gid=$(stat -c "%g" /var/run/docker.sock)
+
+    cat <<EOF >>"$agent_dir"/Dockerfile
+RUN groupadd -g $gid docker && \
+    usermod -aG docker ghrunner
+
+
+USER ghrunner
+RUN mkdir -p /runner/.docker
+
+COPY config.json /runner/.docker/
+
+USER root
+EOF
+}
+
+dockerfile_after_context() {
+    test ! -d /dev/dri || {
+        gid=$(getent group render | awk -F : '{ print $3 }')
+        dockerfile_add_group "$gid" render
+    }
+}
+
+docker_run() {
+    local mount_devices
+
+    mount_devices=$(find /dev -type c -name 'nvidia*' | awk '{ print " --device "$1":"$1 }')
+    test ! -d /dev/dri || {
+        mount_device="$mount_devices --device /dev/dri:/dev/dri"
+    }
+
+    docker run \
+        -v /var/run/docker.sock:/var/run/docker.sock \
+        $mount_devices \
+    "$@"
+}
+
+
 parse_params() {
     test -n "$USER" || USER="$USERNAME"
     test -n "$USER" || USER="$LOGNAME"
@@ -79,7 +121,6 @@ parse_params() {
     touch "$agent_dir"/creds/.placeholder
 
     date >"$agent_dir"/log  
-    tail -f "$agent_dir"/log &
     exec 2>&1 1>"$agent_dir".log
 
     if test -f "$agent_dir"/token
@@ -99,13 +140,8 @@ parse_params() {
         echo "$token" >"$agent_dir"/token
     fi
 
-    if test -f "$docker_context"
-    then
-        docker_context_dockerfile="$docker_context"
-    else
-        docker_context_dockerfile="$docker_context"/Dockerfile.orig
-    fi
-    cp "$docker_context_dockerfile" "$agent_dir"/Dockerfile.orig
+    cp "$docker_context"/Dockerfile.orig "$agent_dir"/
+    test ! -f "$docker_context"/overrides.sh || . "$docker_context"/overrides.sh
 }
 
 create_docker_proxy() {
@@ -113,7 +149,7 @@ create_docker_proxy() {
     HTTPS_PROXY=${HTTPS_PROXY:-$https_proxy}
 
     mkdir -p ~/.docker
-    test -z "$HTTPS_PROXY" || cat <<EOF >~/.docker/config.json
+    test -z "$HTTPS_PROXY" || cat <<EOF >"$agent_dir"/config.json
 {
  "proxies":
  {
@@ -126,9 +162,6 @@ create_docker_proxy() {
  }
 }
 EOF
-
-    touch ~/.docker/config.json
-    cp ~/.docker/config.json "$agent_dir"/
 }
 
 clean_docker() {
@@ -143,25 +176,6 @@ dockerfile_add_user() {
 RUN mkdir -p /runner && \
     useradd -d /runner --uid 1001 ghrunner && \
     chown ghrunner:ghrunner /runner
-EOF
-}
-
-dockerfile_add_docker() {
-    local gid
-
-    gid=$(stat -c "%g" /var/run/docker.sock)
-
-    cat <<EOF >>"$agent_dir"/Dockerfile
-RUN groupadd -g $gid docker && \
-    usermod -aG docker ghrunner
-
-
-USER ghrunner
-RUN mkdir -p /runner/.docker
-
-COPY config.json /runner/.docker/
-
-USER root
 EOF
 }
 
@@ -196,35 +210,15 @@ USER ghrunner
 EOF
 }
 
-
 generate_dockerfile() {
     grep '^FROM ' "$agent_dir"/Dockerfile.orig >"$agent_dir"/Dockerfile
     dockerfile_add_user
-
-    mount_docker_sock=
-    if fgrep -q docker.io "$agent_dir"/Dockerfile.orig
-    then
-        mount_docker_sock="-v /var/run/docker.sock:/var/run/docker.sock"
-        dockerfile_add_docker
-    fi
+    dockerfile_before_context
     grep -v '^FROM ' "$agent_dir"/Dockerfile.orig >>"$agent_dir"/Dockerfile
-
-    mount_vagrant=
-    if fgrep -q vagrant "$agent_dir"/Dockerfile.orig
-    then
-        mkdir -p $agent_dir/vagrant
-        mount_vagrant="-v $agent_dir/vagrant:/runner/.vagrant.d -v /var/run/libvirt/:/var/run/libvirt/"
-    fi
 
     dockerfile_add_agent
     dockerfile_add_entrypoint
-
-    mount_devices=$(find /dev -type c -name 'nvidia*' | awk '{ print " --device "$1":"$1 }')
-    test ! -d /dev/dri || {
-        mount_device="$mount_devices --device /dev/dri:/dev/dri"
-        gid=$(getent group render | awk -F : '{ print $3 }')
-        dockerfile_add_group "$gid" render
-    }
+    dockerfile_after_context
 
     test -z "$become_root" || echo "USER root" >>"$agent_dir"/Dockerfile
 }
@@ -240,12 +234,12 @@ build_docker() {
     create_docker_proxy
     docker build -t "$iname" "$agent_dir"
 
-    docker run -d --network host \
+    docker_run -d --network host \
+        --env http_proxy \
+        --env https_proxy \
+        --env no_proxy \
         --restart unless-stopped \
         --hostname $name \
-        $mount_vagrant \
-        $mount_docker_sock \
-        $mount_devices \
         $become_root \
         -t --name $name $iname
 }
