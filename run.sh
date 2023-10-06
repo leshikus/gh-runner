@@ -196,7 +196,7 @@ EOF
 dockerfile_add_entrypoint() {
     cat <<EOF >>"$agent_dir"/Dockerfile
 USER ghrunner
-COPY --chown=ghrunner:ghrunner entrypoint.sh creds/.* /runner
+COPY --chown=ghrunner:ghrunner entrypoint.sh creds/.* /runner/
 
 ENTRYPOINT ["/runner/entrypoint.sh"]
 EOF
@@ -232,7 +232,11 @@ build_docker() {
     cp entrypoint.sh "$agent_dir"
 
     create_docker_proxy
-    docker build -t "$iname" "$agent_dir"
+    docker build \
+        --build-arg http_proxy \
+        --build-arg https_proxy \
+        --build-arg no_proxy \
+	-t "$iname" "$agent_dir"
 
     docker_run -d --network host \
         --env http_proxy \
