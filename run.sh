@@ -236,7 +236,7 @@ build_docker() {
         --build-arg http_proxy \
         --build-arg https_proxy \
         --build-arg no_proxy \
-	-t "$iname" "$agent_dir"
+        -t "$iname" "$agent_dir"
 
     docker_run -d --network host \
         --env http_proxy \
