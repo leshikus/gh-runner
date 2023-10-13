@@ -37,7 +37,7 @@ docker_run() {
 
     mount_devices=$(find /dev -type c -name 'nvidia*' | awk '{ print " --device "$1":"$1 }')
     test ! -d /dev/dri || {
-        mount_device="$mount_devices --device /dev/dri:/dev/dri"
+        mount_devices="$mount_devices --device /dev/dri:/dev/dri"
     }
 
     docker run \
