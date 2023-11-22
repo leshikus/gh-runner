@@ -26,23 +26,22 @@ EOF
 }
 
 dockerfile_after_context() {
-    test ! -d /dev/dri || {
-        gid=$(getent group render | awk -F : '{ print $3 }')
-        dockerfile_add_group "$gid" render
-    }
+    case " $docker_devices " in
+       *\ /dev/dri\ *)
+        dockerfile_add_group render
+        ;;
+       *\ /dev/kvm\ *)
+        dockerfile_add_group kvm
+        ;;
+    esac
 }
 
 docker_run() {
-    local mount_devices
-
-    mount_devices=$(find /dev -type c -name 'nvidia*' | awk '{ print " --device "$1":"$1 }')
-    test ! -d /dev/dri || {
-        mount_devices="$mount_devices --device /dev/dri:/dev/dri"
-    }
+    # nvidia: /dev/nvidia0 /dev/nvidia-caps /dev/nvidiactl /dev/nvidia-modeset /dev/nvidia-uvm /dev/nvidia-uvm-tools
 
     docker run \
         -v /var/run/docker.sock:/var/run/docker.sock \
-        $mount_devices \
+        $docker_devices \
     "$@"
 }
 
@@ -55,6 +54,7 @@ parse_params() {
     script_dir=$(dirname "$0")
     docker_context="$script_dir"
     runner_label=
+    docker_devices=
 
     while test -n "$1"
     do
@@ -86,6 +86,11 @@ parse_params() {
             -b|--become)
                 become_root="--env RUNNER_ALLOW_RUNASROOT=1"
                 shift
+                ;;
+            -d|--device)
+                echo Mounting $(ls "$2") || die "$2 not found"
+                docker_devices="$docker_devices --device $2"
+                shift 2
                 ;;
             -v|--verbose)
                 set -vx
@@ -138,6 +143,13 @@ parse_params() {
             exit 1
         fi
         echo "$token" >"$agent_dir"/token
+    fi
+
+    if test -n "$docker_devices"
+    then
+        echo "$docker_devices" >"$agent_dir"/device
+    else
+        docker_devices=$(cat "$agent_dir"/device) || true
     fi
 
     cp "$docker_context"/Dockerfile.orig "$agent_dir"/
@@ -203,9 +215,12 @@ EOF
 }
 
 dockerfile_add_group() {
+    local gid
+
+    gid=$(getent group $1 | awk -F : '{ print $3 }')
     cat <<EOF >>"$agent_dir"/Dockerfile
 USER root
-RUN groupadd -g $@
+RUN groupadd -g $gid $1
 USER ghrunner
 EOF
 }
