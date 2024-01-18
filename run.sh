@@ -17,9 +17,9 @@ RUN groupadd -g $gid docker && \
 
 
 USER ghrunner
-RUN mkdir -p /runner/.docker
+RUN mkdir -p /home/ghrunner/.docker
 
-COPY config.json /runner/.docker/
+COPY config.json /home/ghrunner/.docker/
 
 USER root
 EOF
@@ -36,13 +36,19 @@ dockerfile_after_context() {
     esac
 }
 
+docker_build() {
+    docker build \
+        --progress plain \
+        "$@"
+}
+
 docker_run() {
     # nvidia: /dev/nvidia0 /dev/nvidia-caps /dev/nvidiactl /dev/nvidia-modeset /dev/nvidia-uvm /dev/nvidia-uvm-tools
 
     docker run \
         -v /var/run/docker.sock:/var/run/docker.sock \
         $docker_devices \
-    "$@"
+        "$@"
 }
 
 
@@ -185,9 +191,10 @@ clean_docker() {
 
 dockerfile_add_user() {
     cat <<EOF >>"$agent_dir"/Dockerfile
-RUN mkdir -p /runner && \
-    useradd -d /runner --uid 1001 ghrunner && \
-    chown ghrunner:ghrunner /runner
+RUN useradd -m --uid 1001 ghrunner
+
+# Legacy
+RUN ln -snf /home/ghrunner /runner && chown -h ghrunner:ghrunner /runner
 EOF
 }
 
@@ -198,7 +205,7 @@ dockerfile_add_agent() {
 
     cat <<EOF >>"$agent_dir"/Dockerfile
 USER ghrunner
-WORKDIR /runner
+WORKDIR /home/ghrunner
 
 RUN curl -o actions-runner-linux-x64-$gversion.tar.gz -L https://github.com/actions/runner/releases/download/v$gversion/actions-runner-linux-x64-$gversion.tar.gz && \
     tar xzf actions-runner-linux-x64-$gversion.tar.gz
@@ -208,9 +215,9 @@ EOF
 dockerfile_add_entrypoint() {
     cat <<EOF >>"$agent_dir"/Dockerfile
 USER ghrunner
-COPY --chown=ghrunner:ghrunner entrypoint.sh creds/.* /runner/
+COPY --chown=ghrunner:ghrunner entrypoint.sh creds/.* /home/ghrunner/
 
-ENTRYPOINT ["/runner/entrypoint.sh"]
+ENTRYPOINT ["/home/ghrunner/entrypoint.sh"]
 EOF
 }
 
@@ -247,7 +254,7 @@ build_docker() {
     cp entrypoint.sh "$agent_dir"
 
     create_docker_proxy
-    docker build \
+    docker_build \
         --build-arg http_proxy \
         --build-arg https_proxy \
         --build-arg no_proxy \
@@ -265,10 +272,10 @@ build_docker() {
 
 register_runner() {
     test ! -f "$agent_dir"/creds/.runner || return 0
-    docker exec -u ghrunner -t "$name" ./config.sh --name $name --labels $runner_label --url $url --token $token --unattended --replace
+    docker exec -t "$name" ./config.sh --name $name --labels $runner_label --url $url --token $token --unattended --replace
     for f in .runner .credentials .credentials_rsaparams
     do
-        docker cp "$name":/runner/"$f" "$agent_dir"/creds
+        docker cp "$name":/home/ghrunner/"$f" "$agent_dir"/creds
     done
 }
 
