@@ -192,9 +192,6 @@ clean_docker() {
 dockerfile_add_user() {
     cat <<EOF >>"$agent_dir"/Dockerfile
 RUN useradd -m --uid 1001 ghrunner
-
-# Legacy
-RUN ln -snf /home/ghrunner /runner && chown -h ghrunner:ghrunner /runner
 EOF
 }
 
