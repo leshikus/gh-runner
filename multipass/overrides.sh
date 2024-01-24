@@ -28,11 +28,12 @@ docker_run() {
         -v /snap:/snap \
         -v /var/lib/snapd:/var/lib/snapd \
         -v /var/snap/multipass:/var/snap/multipass \
+        -v /sys/kernel/security:/sys/kernel/security \
         --cap-add SYS_PTRACE --cap-add SYS_ADMIN --cap-add SYSLOG \
         --security-opt apparmor:unconfined --security-opt seccomp=unconfined \
         "$@"
 
-    docker exec -ti --user root "$name" mount -t securityfs securityfs /sys/kernel/security
     multipass_authenticate
+    docker commit "$name" "$iname"
 }
 
