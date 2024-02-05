@@ -11,12 +11,9 @@ dockerfile_before_context() {
 
     gid=$(stat -c "%g" /var/run/docker.sock)
 
+    dockerfile_add_group docker
+
     cat <<EOF >>"$agent_dir"/Dockerfile
-RUN groupadd -g $gid docker && \
-    usermod -aG docker ghrunner
-
-
-USER ghrunner
 RUN mkdir -p /home/ghrunner/.docker
 
 COPY config.json /home/ghrunner/.docker/
@@ -87,6 +84,8 @@ parse_params() {
                 ;;
             -c|--context)
                 docker_context="$2"
+                label=$(basename "$docker_context")
+                runner_label="$runner_label,$label"
                 shift 2
                 ;;
             -b|--become)
@@ -201,6 +200,14 @@ dockerfile_add_agent() {
     gversion=$(curl --head -i https://github.com/actions/runner/releases/latest | awk '/^[lL]ocation: / { gsub(/.*v/, ""); gsub(/[^0-9]*$/, ""); print }')
 
     cat <<EOF >>"$agent_dir"/Dockerfile
+USER root
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+    curl \
+    tar \
+    libicu-dev \
+    ca-certificates
+
 USER ghrunner
 WORKDIR /home/ghrunner
 
@@ -215,16 +222,20 @@ USER ghrunner
 COPY --chown=ghrunner:ghrunner entrypoint.sh creds/.* /home/ghrunner/
 
 ENTRYPOINT ["/home/ghrunner/entrypoint.sh"]
+CMD [""] FIXME
 EOF
 }
 
 dockerfile_add_group() {
+    local gname
     local gid
 
-    gid=$(getent group $1 | awk -F : '{ print $3 }')
+    gname="$1"
+
+    gid=$(getent group $gname | awk -F : '{ print $3 }')
     cat <<EOF >>"$agent_dir"/Dockerfile
 USER root
-RUN groupadd -g $gid $1
+RUN groupadd -g $gid $1 && usermod -aG $gname ghrunner
 USER ghrunner
 EOF
 }
@@ -242,7 +253,7 @@ generate_dockerfile() {
     test -z "$become_root" || echo "USER root" >>"$agent_dir"/Dockerfile
 }
 
-build_docker() {
+docker_launch() {
     test -z "$dont_rebuild_docker" || return 0
 
     clean_docker
@@ -269,7 +280,6 @@ build_docker() {
 
 register_runner() {
     test ! -f "$agent_dir"/creds/.runner || return 0
-    docker exec -t "$name" ./config.sh --name $name --labels $runner_label --url $url --token $token --unattended --replace
     for f in .runner .credentials .credentials_rsaparams
     do
         docker cp "$name":/home/ghrunner/"$f" "$agent_dir"/creds
@@ -294,6 +304,5 @@ then
     exit 0
 fi
 
-build_docker
-register_runner
+docker_launch
 
