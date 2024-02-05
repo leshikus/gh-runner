@@ -17,15 +17,10 @@ Options:
     -v|--verbose        add a debug output
 ```
 
-## How to get the runner token
-
-Go to `Settings => Runners` for your repo, add a new runner, copy the token.
-
-
 ## How to browse logs
 
 For an example container `leshikus/gh-runner/test` logs can be viewed via
-    `view /tmp/$USER/gh-runner/leshikus.gh-runner.test/logs`
+    `view $HOME/.config/gh-runner/leshikus.gh-runner.test/logs`
     and `docker logs leshikus.gh-runner.test`
 
 
