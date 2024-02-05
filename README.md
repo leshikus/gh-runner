@@ -7,7 +7,8 @@ Usage:
     run.sh [OPTIONS] runner_name
         runner_name  should contain a name of the repository, e.g. leshikus/gh-runner/test
 Options:
-    -t|--token [TOKEN]  use the token for registration
+    -t|--token [TOKEN]  user token for the repo, see the required scope at
+        https://github.com/actions/actions-runner-controller/blob/master/docs/authenticating-to-the-github-api.md#deploying-using-pat-authentication
     -l|--label [LABEL]  mark the runner with the label instead of the name
     -nr|--no-rebuild    do not rebuild the contaner
     -r|--remove         unregister the runner and remove the container

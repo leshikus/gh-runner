@@ -55,12 +55,17 @@ parse_params() {
     test -n "$USER"
 
     script_dir=$(dirname "$0")
-    docker_context="$script_dir"
+    docker_context="$script_dir"/docker
     runner_label=
     docker_devices=
+    skip_sanity_check=
+    remove_runner=
+    dont_rebuild_docker=
+    become_root=
 
-    while test -n "$1"
+    while test ! -z ${1+x}
     do
+        echo test "[${1+x}]"
         case "$1" in
             -t|--token)
                 token="$2"
@@ -84,8 +89,6 @@ parse_params() {
                 ;;
             -c|--context)
                 docker_context="$2"
-                label=$(basename "$docker_context")
-                runner_label="$runner_label,$label"
                 shift 2
                 ;;
             -b|--become)
@@ -115,20 +118,20 @@ parse_params() {
         esac
     done
    
-    test -n "$iname" || die "missed a runner name"     
+    test -z ${iname+x} && die "missed a runner name"
 
-    url=https://github.com/$(echo "$iname" | sed -e 's#/[^/]*$##')
+    repo_path=$(echo "$iname" | sed -e 's#/[^/]*$##')
     name=$(echo "$iname" | tr / .)
     test -n "$skip_sanity_check" || \
-        if ! git ls-remote "$url" 1>/dev/null
+        if ! git ls-remote "https://github.com/$repo_path" 1>/dev/null
         then
-            die "invalid git repo $url from image $iname"
+            die "invalid git repo path $repo_path from image $iname"
         fi
-    runner_label="$name$runner_label"
+    context_label=$(basename "$docker_context")
+    runner_label="$name,$context_label$runner_label"
 
     agent_dir="$HOME/.config/gh-runner/$name"
-    mkdir -p "$agent_dir"/creds
-    touch "$agent_dir"/creds/.placeholder
+    mkdir -p "$agent_dir"
 
     date >"$agent_dir"/log  
     exec 2>&1 1>"$agent_dir".log
@@ -161,27 +164,7 @@ parse_params() {
     test ! -f "$docker_context"/overrides.sh || . "$docker_context"/overrides.sh
 }
 
-create_docker_proxy() {
-    HTTP_PROXY=${HTTP_PROXY:-$http_proxy}
-    HTTPS_PROXY=${HTTPS_PROXY:-$https_proxy}
-
-    mkdir -p ~/.docker
-    test -z "$HTTPS_PROXY" || cat <<EOF >"$agent_dir"/config.json
-{
- "proxies":
- {
-   "default":
-   {
-     "httpProxy": "$HTTP_PROXY",
-     "httpsProxy": "$HTTPS_PROXY",
-     "noProxy": "$no_proxy"
-   }
- }
-}
-EOF
-}
-
-clean_docker() {
+docker_clean() {
     docker container prune -f --filter "until=48h"
     none_images=$(docker images | awk '/^<none> +<none>/ { print $3 }')
     test -z "$none_images" || docker rmi -f $none_images
@@ -206,7 +189,8 @@ RUN apt-get update \
     curl \
     tar \
     libicu-dev \
-    ca-certificates
+    ca-certificates \
+    jq
 
 USER ghrunner
 WORKDIR /home/ghrunner
@@ -219,10 +203,10 @@ EOF
 dockerfile_add_entrypoint() {
     cat <<EOF >>"$agent_dir"/Dockerfile
 USER ghrunner
-COPY --chown=ghrunner:ghrunner entrypoint.sh creds/.* /home/ghrunner/
+COPY --chown=ghrunner:ghrunner entrypoint.sh /home/ghrunner/
 
 ENTRYPOINT ["/home/ghrunner/entrypoint.sh"]
-CMD [""] FIXME
+CMD ["$token", "$repo_path", "--name", "$name", "--labels", "$runner_label"]
 EOF
 }
 
@@ -256,17 +240,16 @@ generate_dockerfile() {
 docker_launch() {
     test -z "$dont_rebuild_docker" || return 0
 
-    clean_docker
+    docker_clean
     generate_dockerfile
 
     cp entrypoint.sh "$agent_dir"
 
-    create_docker_proxy
     docker_build \
         --build-arg http_proxy \
         --build-arg https_proxy \
         --build-arg no_proxy \
-        -t "$iname" "$agent_dir"
+        -t $iname "$agent_dir"
 
     docker_run -d --network host \
         --env http_proxy \
@@ -278,21 +261,13 @@ docker_launch() {
         -t --name $name $iname
 }
 
-register_runner() {
-    test ! -f "$agent_dir"/creds/.runner || return 0
-    for f in .runner .credentials .credentials_rsaparams
-    do
-        docker cp "$name":/home/ghrunner/"$f" "$agent_dir"/creds
-    done
-}
-
 remove_runner() {
-    docker exec -u ghrunner -t "$name" ./config.sh remove --token $token || true
-    clean_docker
-    rm -f "$agent_dir"/token "$agent_dir"/creds/.runner
+    docker exec -u ghrunner -t $name ./config.sh remove --token '$(cat ./ghr-token)' || true
+    docker_clean
+    rm -f "$agent_dir"/token
 }
 
-set -e
+set -eu
 
 parse_params "$@"
 
