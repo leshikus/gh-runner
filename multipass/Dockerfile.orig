@@ -1,17 +1,7 @@
-FROM ubuntu:latest
-
-ENV DEBIAN_FRONTEND="noninteractive"
-
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
-    curl \
-    git \
-    wget \
-    tar \
-    libicu-dev \
     pipx \
-    snapd \
-    ca-certificates
+    snapd
 
 RUN PIPX_HOME=/opt/pipx PIPX_BIN_DIR=/usr/local/bin PIPX_MAN_DIR=/usr/local/share/man pipx install --include-deps ansible
 

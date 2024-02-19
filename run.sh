@@ -6,26 +6,7 @@ die() {
 }
 
 
-dockerfile_before_context() {
-    local gid
-
-    gid=$(stat -c "%g" /var/run/docker.sock)
-
-    cat <<EOF >>"$agent_dir"/Dockerfile
-RUN groupadd -g $gid docker && \
-    usermod -aG docker ghrunner
-
-
-USER ghrunner
-RUN mkdir -p /home/ghrunner/.docker
-
-COPY config.json /home/ghrunner/.docker/
-
-USER root
-EOF
-}
-
-dockerfile_after_context() {
+dockerfile_add_device_groups() {
     case " $docker_devices " in
        *\ /dev/dri\ *)
         dockerfile_add_group render
@@ -36,6 +17,14 @@ dockerfile_after_context() {
     esac
 }
 
+dockerfile_before_context() {
+    dockerfile_add_group docker
+}
+
+dockerfile_after_context() {
+    :
+}
+
 docker_build() {
     docker build \
         --progress plain \
@@ -43,14 +32,24 @@ docker_build() {
 }
 
 docker_run() {
-    # nvidia: /dev/nvidia0 /dev/nvidia-caps /dev/nvidiactl /dev/nvidia-modeset /dev/nvidia-uvm /dev/nvidia-uvm-tools
+    cp watcher-entrypoint.sh "$watcher_dir"/entrypoint.sh
+    {
+        dockerfile_add_user
+        dockerfile_add_group docker
+        cat docker/Dockerfile.orig
+        dockerfile_add_watcher_entrypoint
+    } >"$watcher_dir"/Dockerfile
+
+    docker build -t watcher "$watcher_dir"
 
     docker run \
         -v /var/run/docker.sock:/var/run/docker.sock \
-        $docker_devices \
-        "$@"
+        --restart unless-stopped \
+        -d --network none \
+        -t --name $name.watcher watcher \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            "$@"
 }
-
 
 parse_params() {
     test -n "$USER" || USER="$USERNAME"
@@ -58,11 +57,16 @@ parse_params() {
     test -n "$USER"
 
     script_dir=$(dirname "$0")
-    docker_context="$script_dir"
+    docker_context="$script_dir"/docker
     runner_label=
     docker_devices=
+    skip_sanity_check=
+    remove_runner=
+    dont_rebuild_docker=
+    become_root=
+    token=${GITHUB_TOKEN:-}
 
-    while test -n "$1"
+    while test ! -z ${1+x}
     do
         case "$1" in
             -t|--token)
@@ -116,20 +120,21 @@ parse_params() {
         esac
     done
    
-    test -n "$iname" || die "missed a runner name"     
+    test -z ${iname+x} && die "missed a runner name"
 
-    url=https://github.com/$(echo "$iname" | sed -e 's#/[^/]*$##')
+    repo_path=$(echo "$iname" | sed -e 's#/[^/]*$##')
     name=$(echo "$iname" | tr / .)
     test -n "$skip_sanity_check" || \
-        if ! git ls-remote "$url" 1>/dev/null
+        if ! git ls-remote "https://github.com/$repo_path" 1>/dev/null
         then
-            die "invalid git repo $url from image $iname"
+            die "invalid git repo path $repo_path from image $iname"
         fi
-    runner_label="$name$runner_label"
+    context_label=$(basename "$docker_context")
+    runner_label="$name,$context_label$runner_label"
 
     agent_dir="$HOME/.config/gh-runner/$name"
-    mkdir -p "$agent_dir"/creds
-    touch "$agent_dir"/creds/.placeholder
+    watcher_dir="$HOME/.config/gh-runner/watcher"
+    mkdir -p "$agent_dir" "$watcher_dir"
 
     date >"$agent_dir"/log  
     exec 2>&1 1>"$agent_dir".log
@@ -162,39 +167,20 @@ parse_params() {
     test ! -f "$docker_context"/overrides.sh || . "$docker_context"/overrides.sh
 }
 
-create_docker_proxy() {
-    HTTP_PROXY=${HTTP_PROXY:-$http_proxy}
-    HTTPS_PROXY=${HTTPS_PROXY:-$https_proxy}
-
-    mkdir -p ~/.docker
-    test -z "$HTTPS_PROXY" || cat <<EOF >"$agent_dir"/config.json
-{
- "proxies":
- {
-   "default":
-   {
-     "httpProxy": "$HTTP_PROXY",
-     "httpsProxy": "$HTTPS_PROXY",
-     "noProxy": "$no_proxy"
-   }
- }
-}
-EOF
-}
-
-clean_docker() {
+docker_clean() {
     docker container prune -f --filter "until=48h"
     none_images=$(docker images | awk '/^<none> +<none>/ { print $3 }')
     test -z "$none_images" || docker rmi -f $none_images
+    docker rm -f "$name".watcher || true
     docker rm -f "$name" || true
 }
 
 dockerfile_add_user() {
-    cat <<EOF >>"$agent_dir"/Dockerfile
-RUN useradd -m --uid 1001 ghrunner
+    cat <<EOF
+FROM ubuntu:latest
+ENV DEBIAN_FRONTEND="noninteractive"
 
-# Legacy
-RUN ln -snf /home/ghrunner /runner && chown -h ghrunner:ghrunner /runner
+RUN useradd -m --uid 1001 ghrunner
 EOF
 }
 
@@ -203,7 +189,16 @@ dockerfile_add_agent() {
 
     gversion=$(curl --head -i https://github.com/actions/runner/releases/latest | awk '/^[lL]ocation: / { gsub(/.*v/, ""); gsub(/[^0-9]*$/, ""); print }')
 
-    cat <<EOF >>"$agent_dir"/Dockerfile
+    cat <<EOF
+USER root
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+    curl \
+    tar \
+    libicu-dev \
+    ca-certificates \
+    jq
+
 USER ghrunner
 WORKDIR /home/ghrunner
 
@@ -213,79 +208,82 @@ EOF
 }
 
 dockerfile_add_entrypoint() {
-    cat <<EOF >>"$agent_dir"/Dockerfile
+    cat <<EOF
 USER ghrunner
-COPY --chown=ghrunner:ghrunner entrypoint.sh creds/.* /home/ghrunner/
+COPY --chown=ghrunner:ghrunner entrypoint.sh /home/ghrunner/
 
 ENTRYPOINT ["/home/ghrunner/entrypoint.sh"]
+CMD ["$token", "$repo_path", "--name", "$name", "--labels", "$runner_label"]
+EOF
+}
+
+dockerfile_add_watcher_entrypoint() {
+    cat <<EOF
+USER ghrunner
+COPY --chown=ghrunner:ghrunner entrypoint.sh /home/ghrunner/
+
+ENTRYPOINT ["/home/ghrunner/entrypoint.sh"]
+CMD [""]
 EOF
 }
 
 dockerfile_add_group() {
+    local gname
     local gid
 
-    gid=$(getent group $1 | awk -F : '{ print $3 }')
-    cat <<EOF >>"$agent_dir"/Dockerfile
-USER root
-RUN groupadd -g $gid $1
-USER ghrunner
+    gname="$1"
+
+    gid=$(getent group $gname | awk -F : '{ print $3 }')
+    cat <<EOF
+RUN groupadd -g $gid $1 && usermod -aG $gname ghrunner
 EOF
 }
 
 generate_dockerfile() {
-    grep '^FROM ' "$agent_dir"/Dockerfile.orig >"$agent_dir"/Dockerfile
-    dockerfile_add_user
-    dockerfile_before_context
-    grep -v '^FROM ' "$agent_dir"/Dockerfile.orig >>"$agent_dir"/Dockerfile
+    {
+        dockerfile_add_user
+        dockerfile_add_device_groups
+        dockerfile_before_context
+        cat "$agent_dir"/Dockerfile.orig
 
-    dockerfile_add_agent
-    dockerfile_add_entrypoint
-    dockerfile_after_context
-
-    test -z "$become_root" || echo "USER root" >>"$agent_dir"/Dockerfile
+        dockerfile_add_agent
+        dockerfile_add_entrypoint
+        dockerfile_after_context
+        test -z "$become_root" || echo "USER root"
+    } >"$agent_dir"/Dockerfile
 }
 
-build_docker() {
+docker_launch() {
     test -z "$dont_rebuild_docker" || return 0
 
-    clean_docker
+    docker_clean
     generate_dockerfile
 
     cp entrypoint.sh "$agent_dir"
 
-    create_docker_proxy
     docker_build \
         --build-arg http_proxy \
         --build-arg https_proxy \
         --build-arg no_proxy \
-        -t "$iname" "$agent_dir"
+        -t $iname "$agent_dir"
 
-    docker_run -d --network host \
+    docker_run --network host \
         --env http_proxy \
         --env https_proxy \
         --env no_proxy \
-        --restart unless-stopped \
         --hostname $name \
+        $docker_devices \
         $become_root \
         -t --name $name $iname
 }
 
-register_runner() {
-    test ! -f "$agent_dir"/creds/.runner || return 0
-    docker exec -t "$name" ./config.sh --name $name --labels $runner_label --url $url --token $token --unattended --replace
-    for f in .runner .credentials .credentials_rsaparams
-    do
-        docker cp "$name":/home/ghrunner/"$f" "$agent_dir"/creds
-    done
-}
-
 remove_runner() {
-    docker exec -u ghrunner -t "$name" ./config.sh remove --token $token || true
-    clean_docker
-    rm -f "$agent_dir"/token "$agent_dir"/creds/.runner
+    docker exec -u ghrunner -t $name ./config.sh remove --token '$(cat ./ghr-token)' || true
+    docker_clean
+    rm -f "$agent_dir"/token
 }
 
-set -e
+set -eu
 
 parse_params "$@"
 
@@ -297,6 +295,5 @@ then
     exit 0
 fi
 
-build_docker
-register_runner
+docker_launch
 
