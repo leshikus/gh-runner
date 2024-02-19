@@ -1,7 +1,7 @@
 #!/bin/sh
 
 set -eu
-set -vx
+#set -vx
 
 token="$1"
 repo_path="$2"
@@ -17,6 +17,6 @@ curl -L \
   -H "X-GitHub-Api-Version: 2022-11-28" \
   https://api.github.com/repos/$repo_path/actions/runners/registration-token | jq -r .token >./ghr-token
 
-./config.sh --url https://github.com/$repo_path --token $(cat ./ghr-token) --unattended --replace --ephemeral "$@"
+./config.sh --ephemeral --url https://github.com/$repo_path --token $(cat ./ghr-token) --unattended --replace "$@"
 ./run.sh
 
