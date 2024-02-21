@@ -8,22 +8,16 @@ dockerfile_after_context() {
     :
 }
 
-multipass_authenticate() {
-    local passphrase
-
-    passphrase=$(tr -dc A-Za-z0-9 </dev/urandom | head -c 13)
-    multipass set local.passphrase="$passphrase"
-
-    for i in in 1 2 3 4 5
-    do
-        sleep 3
-        docker exec -ti "$name" multipass authenticate "$passphrase" && return
-    done
-    die Cannot authenticate in multipass
+docker_build() {
+    rm -rf "$agent_dir"/home-snap
+    cp -r "$HOME"/snap "$agent_dir"/home-snap
+    docker build \
+        --progress plain \
+        "$@"
 }
 
 docker_run() {
-    docker run \
+    docker_run_watcher \
         -v /run/snapd.socket:/run/snapd.socket \
         -v /snap:/snap \
         -v /var/lib/snapd:/var/lib/snapd \
@@ -32,8 +26,5 @@ docker_run() {
         --cap-add SYS_PTRACE --cap-add SYS_ADMIN --cap-add SYSLOG \
         --security-opt apparmor:unconfined --security-opt seccomp=unconfined \
         "$@"
-
-    multipass_authenticate
-    docker commit "$name" "$iname"
 }
 

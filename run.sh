@@ -31,7 +31,7 @@ docker_build() {
         "$@"
 }
 
-docker_run() {
+docker_build_watcher() {
     cp watcher-entrypoint.sh "$watcher_dir"/entrypoint.sh
     {
         dockerfile_add_user
@@ -41,14 +41,21 @@ docker_run() {
     } >"$watcher_dir"/Dockerfile
 
     docker build -t watcher "$watcher_dir"
+}
 
+docker_run_watcher() {
     docker run \
         -v /var/run/docker.sock:/var/run/docker.sock \
         --restart unless-stopped \
         -d --network none \
-        -t --name $name.watcher watcher \
-            -v /var/run/docker.sock:/var/run/docker.sock \
-            "$@"
+        -t --name $name.watcher watcher "$@"
+}
+
+
+docker_run() {
+    docker_run_watcher \
+        -v /var/run/docker.sock:/var/run/docker.sock \
+        "$@"
 }
 
 parse_params() {
@@ -258,6 +265,7 @@ docker_launch() {
 
     docker_clean
     generate_dockerfile
+    docker_build_watcher
 
     cp entrypoint.sh "$agent_dir"
 
