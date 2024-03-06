@@ -5,7 +5,6 @@ die() {
     exit 1
 }
 
-
 dockerfile_add_device_groups() {
     case " $docker_devices " in
        *\ /dev/dri\ *)
@@ -192,16 +191,10 @@ EOF
 }
 
 dockerfile_add_agent() {
-    local gversion
-
-    gversion=$(curl --head -i https://github.com/actions/runner/releases/latest | awk '/^[lL]ocation: / { gsub(/.*v/, ""); gsub(/[^0-9]*$/, ""); print }')
-
     cat <<EOF
 USER root
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
-    curl \
-    tar \
     libicu-dev \
     ca-certificates \
     jq \
@@ -210,15 +203,13 @@ RUN apt-get update \
 USER ghrunner
 WORKDIR /home/ghrunner
 
-RUN curl -o actions-runner-linux-x64-$gversion.tar.gz -L https://github.com/actions/runner/releases/download/v$gversion/actions-runner-linux-x64-$gversion.tar.gz && \
-    tar xzf actions-runner-linux-x64-$gversion.tar.gz
 EOF
 }
 
 dockerfile_add_entrypoint() {
     cat <<EOF
 USER ghrunner
-COPY --chown=ghrunner:ghrunner entrypoint.sh /home/ghrunner/
+COPY --chown=ghrunner:ghrunner entrypoint.sh runner/ /home/ghrunner/
 
 ENTRYPOINT ["/home/ghrunner/entrypoint.sh"]
 CMD ["$token", "$repo_path", "--name", "$name", "--labels", "$runner_label"]
@@ -286,10 +277,28 @@ docker_launch() {
         -t --name $name $iname
 }
 
+register_runner() {
+    local gversion
+
+    gversion=$(curl --head -i https://github.com/actions/runner/releases/latest | awk '/^[lL]ocation: / { gsub(/.*v/, ""); gsub(/[^0-9]*$/, ""); print }')
+
+    test ! -f "$agent_dir"/runner-$gversion || return 0
+    rm -rf "$agent_dir"/runner
+    mkdir "$agent_dir"/runner
+    (
+        cd "$agent_dir"/runner
+        curl -o actions-runner-linux-x64-$gversion.tar.gz -L https://github.com/actions/runner/releases/download/v$gversion/actions-runner-linux-x64-$gversion.tar.gz
+        tar xzf actions-runner-linux-x64-$gversion.tar.gz
+        ./config.sh --name $name --labels $runner_label --url https://github.com/$repo_path --token $token --unattended --replace
+    )
+    touch "$agent_dir"/runner-$gversion
+}
+
 remove_runner() {
-    docker exec -u ghrunner -t $name ./config.sh remove --token '$(cat ./ghr-token)' || true
+    docker exec -u ghrunner -t $name ./config.sh remove --token $token || true
     docker_clean
     rm -f "$agent_dir"/token
+    rm -rf "$agent_dir"/runner*
 }
 
 set -eu
@@ -304,5 +313,6 @@ then
     exit 0
 fi
 
+register_runner
 docker_launch
 
