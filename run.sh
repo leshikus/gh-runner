@@ -204,7 +204,8 @@ RUN apt-get update \
     tar \
     libicu-dev \
     ca-certificates \
-    jq
+    jq \
+    git
 
 USER ghrunner
 WORKDIR /home/ghrunner
