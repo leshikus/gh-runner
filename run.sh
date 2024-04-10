@@ -26,7 +26,6 @@ dockerfile_after_context() {
 
 docker_build() {
     docker build \
-        --progress plain \
         "$@"
 }
 
@@ -39,7 +38,7 @@ docker_build_watcher() {
         dockerfile_add_watcher_entrypoint
     } >"$watcher_dir"/Dockerfile
 
-    docker build -t watcher "$watcher_dir"
+    docker_build -t watcher "$watcher_dir"
 }
 
 docker_run_watcher() {
@@ -184,35 +183,31 @@ docker_clean() {
 dockerfile_add_user() {
     cat <<EOF
 FROM ubuntu:latest
-ENV DEBIAN_FRONTEND="noninteractive"
 
 RUN useradd -m --uid 1001 ghrunner
+ENV DEBIAN_FRONTEND="noninteractive"
 EOF
 }
 
-dockerfile_add_agent() {
+dockerfile_install_packages() {
     cat <<EOF
-USER root
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
     libicu-dev \
     ca-certificates \
-    jq \
-    git
-
-USER ghrunner
-WORKDIR /home/ghrunner
-
+    jq git \
+    curl gpg
 EOF
 }
 
 dockerfile_add_entrypoint() {
     cat <<EOF
 USER ghrunner
+WORKDIR /home/ghrunner
 COPY --chown=ghrunner:ghrunner entrypoint.sh runner/ /home/ghrunner/
 
 ENTRYPOINT ["/home/ghrunner/entrypoint.sh"]
-CMD ["$token", "$repo_path", "--name", "$name", "--labels", "$runner_label"]
+CMD [""]
 EOF
 }
 
@@ -242,10 +237,10 @@ generate_dockerfile() {
     {
         dockerfile_add_user
         dockerfile_add_device_groups
+        dockerfile_install_packages
         dockerfile_before_context
         cat "$agent_dir"/Dockerfile.orig
 
-        dockerfile_add_agent
         dockerfile_add_entrypoint
         dockerfile_after_context
         test -z "$become_root" || echo "USER root"
@@ -268,9 +263,9 @@ docker_launch() {
         -t $iname "$agent_dir"
 
     docker_run --network host \
-        --env http_proxy \
-        --env https_proxy \
-        --env no_proxy \
+        --env "http_proxy=$http_proxy" \
+        --env "https_proxy=$https_proxy" \
+        --env "no_proxy=$no_proxy" \
         --hostname $name \
         $docker_devices \
         $become_root \
@@ -289,6 +284,7 @@ register_runner() {
         cd "$agent_dir"/runner
         curl -o actions-runner-linux-x64-$gversion.tar.gz -L https://github.com/actions/runner/releases/download/v$gversion/actions-runner-linux-x64-$gversion.tar.gz
         tar xzf actions-runner-linux-x64-$gversion.tar.gz
+        rm actions-runner-linux-x64-$gversion.tar.gz
         ./config.sh --name $name --labels $runner_label --url https://github.com/$repo_path --token $token --unattended --replace
     )
     touch "$agent_dir"/runner-$gversion
