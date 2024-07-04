@@ -26,6 +26,9 @@ dockerfile_after_context() {
 
 docker_build() {
     docker build \
+        --build-arg "http_proxy=$http_proxy" \
+        --build-arg "https_proxy=$https_proxy" \
+        --build-arg "no_proxy=$no_proxy" \
         "$@"
 }
 
@@ -52,6 +55,9 @@ docker_run_watcher() {
 
 docker_run() {
     docker_run_watcher \
+        --env "http_proxy=$http_proxy" \
+        --env "https_proxy=$https_proxy" \
+        --env "no_proxy=$no_proxy" \
         -v /var/run/docker.sock:/var/run/docker.sock \
         "$@"
 }
@@ -182,7 +188,7 @@ docker_clean() {
 
 dockerfile_add_user() {
     cat <<EOF
-FROM ubuntu:latest
+FROM ubuntu:$(lsb_release -rs)
 
 RUN useradd -m --uid 1001 ghrunner
 ENV DEBIAN_FRONTEND="noninteractive"
@@ -241,8 +247,8 @@ generate_dockerfile() {
         dockerfile_before_context
         cat "$agent_dir"/Dockerfile.orig
 
-        dockerfile_add_entrypoint
         dockerfile_after_context
+        dockerfile_add_entrypoint
         test -z "$become_root" || echo "USER root"
     } >"$agent_dir"/Dockerfile
 }
@@ -257,15 +263,9 @@ docker_launch() {
     cp entrypoint.sh "$agent_dir"
 
     docker_build \
-        --build-arg http_proxy \
-        --build-arg https_proxy \
-        --build-arg no_proxy \
         -t $iname "$agent_dir"
 
     docker_run --network host \
-        --env "http_proxy=$http_proxy" \
-        --env "https_proxy=$https_proxy" \
-        --env "no_proxy=$no_proxy" \
         --hostname $name \
         $docker_devices \
         $become_root \
