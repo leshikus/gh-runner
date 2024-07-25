@@ -6,6 +6,7 @@ RUN set -ex; \
     apt-get update --yes; \
     apt-get install --yes build-essential clang cmake ninja-build \
         python3 python3-pip \
-        intel-opencl-icd intel-level-zero-gpu clinfo intel-basekit; \
+        intel-opencl-icd opencl-c-headers \
+        intel-level-zero-gpu level-zero level-zero-dev \
+        intel-basekit; \
     rm -rf /var/lib/apt/lists/*
-
