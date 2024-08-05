@@ -7,7 +7,7 @@ die() {
 
 dockerfile_add_device_groups() {
     case " $docker_devices " in
-       *\ /dev/dri\ *)
+       *\ /dev/dri*)
         dockerfile_add_group render
         ;;
        *\ /dev/kvm\ *)
@@ -76,6 +76,10 @@ parse_params() {
     dont_rebuild_docker=
     become_root=
     token=${GITHUB_TOKEN:-}
+    http_proxy=${http_proxy:-}
+    https_proxy=${https_proxy:-}
+    no_proxy=${no_proxy:-}
+
 
     while test ! -z ${1+x}
     do
