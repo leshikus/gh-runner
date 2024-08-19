@@ -3,10 +3,20 @@ RUN set -ex; \
     echo 'deb [arch=amd64 signed-by=/usr/share/keyrings/intel-graphics.gpg] https://repositories.intel.com/gpu/ubuntu jammy max' >/etc/apt/sources.list.d/intel-gpu-jammy.list; \
     curl https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB | gpg --dearmor --output /usr/share/keyrings/oneapi-archive-keyring.gpg; \
     echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https://apt.repos.intel.com/oneapi all main" >/etc/apt/sources.list.d/oneAPI.list; \
+    curl -sSL https://cli.github.com/packages/githubcli-archive-keyring.gpg > /usr/share/keyrings/githubcli-archive-keyring.gpg; \
+    echo "deb [arch=amd64 signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" > /etc/apt/sources.list.d/github-cli.list
+
+RUN set -ex; \
     apt-get update --yes; \
     apt-get install --yes build-essential clang cmake ninja-build \
         python3 python3-pip \
-        intel-opencl-icd opencl-c-headers \
+        intel-opencl-icd opencl-c-headers ocl-icd-opencl-dev \
         intel-level-zero-gpu level-zero level-zero-dev \
-        intel-basekit; \
+        intel-basekit \
+        python3-pip python3-dev \
+        cmake gcc g++ ninja-build git clang-format \
+        gh \
+        libomp-dev; \
     rm -rf /var/lib/apt/lists/*
+
+RUN pip install lit numpy
