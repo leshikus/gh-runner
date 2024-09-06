@@ -74,6 +74,7 @@ parse_params() {
     skip_sanity_check=
     remove_runner=
     dont_rebuild_docker=
+    dont_register=
     become_root=
     token=${GITHUB_TOKEN:-}
     http_proxy=${http_proxy:-}
@@ -90,6 +91,10 @@ parse_params() {
                 ;;
             -nr|--no-rebuild)
                 dont_rebuild_docker=true
+                shift
+                ;;
+            --no-register)
+                dont_register=true
                 shift
                 ;;
             -r|--remove)
@@ -185,7 +190,7 @@ parse_params() {
 docker_clean() {
     docker container prune -f --filter "until=48h"
     none_images=$(docker images | awk '/^<none> +<none>/ { print $3 }')
-    test -z "$none_images" || docker rmi -f $none_images
+    test -z "$none_images" || docker rmi -f $none_images || true
     docker rm -f "$name".watcher || true
     docker rm -f "$name" || true
 }
@@ -277,6 +282,7 @@ docker_launch() {
 }
 
 register_runner() {
+    test -z "$dont_register" || return 0
     local gversion
 
     gversion=$(curl --head -i https://github.com/actions/runner/releases/latest | awk '/^[lL]ocation: / { gsub(/.*v/, ""); gsub(/[^0-9]*$/, ""); print }')

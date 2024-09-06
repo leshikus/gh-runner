@@ -1,3 +1,5 @@
+RUN apt-get update && apt-get upgrade -y
+
 RUN set -ex; \
     curl -sSL https://repositories.intel.com/gpu/intel-graphics.key | gpg --dearmor --output /usr/share/keyrings/intel-graphics.gpg; \
     echo 'deb [arch=amd64 signed-by=/usr/share/keyrings/intel-graphics.gpg] https://repositories.intel.com/gpu/ubuntu jammy max' >/etc/apt/sources.list.d/intel-gpu-jammy.list; \
@@ -14,7 +16,7 @@ RUN set -ex; \
         intel-level-zero-gpu level-zero level-zero-dev \
         intel-basekit \
         python3-pip python3-dev \
-        cmake gcc g++ ninja-build git clang-format \
+        cmake gcc g++ ninja-build git clang clang-format \
         gh \
         libomp-dev; \
     rm -rf /var/lib/apt/lists/*
