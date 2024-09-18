@@ -17,8 +17,8 @@ RUN set -ex; \
         intel-basekit \
         python3-pip python3-dev \
         cmake gcc g++ ninja-build git clang clang-format \
-        gh \
+        gh numactl \
         libomp-dev; \
     rm -rf /var/lib/apt/lists/*
 
-RUN pip install lit numpy
+RUN pip install lit numpy torch
