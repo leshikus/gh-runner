@@ -7,6 +7,8 @@ Usage:
     run.sh [OPTIONS] runner_name
         runner_name  should contain a name of the repository, e.g. leshikus/gh-runner/test
 Options:
+    --privileged        run the runner in privileged mode
+    --numa [node id]    bind the runner on the specified numa node
     -t|--token [TOKEN]  user token for the self-hosted runner
                         go to Settings -> Runners for your repo
     -l|--label [LABEL]  mark the runner with the label instead of the name
