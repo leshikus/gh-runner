@@ -45,7 +45,7 @@ docker_build_watcher() {
 }
 
 docker_run_watcher() {
-    docker run $privileged \
+    docker run $privileged $numa \
         -v /var/run/docker.sock:/var/run/docker.sock \
         --restart unless-stopped \
         -d --network none \
@@ -54,7 +54,7 @@ docker_run_watcher() {
 
 
 docker_run() {
-    docker_run_watcher $privileged \
+    docker_run_watcher $privileged $numa \
         --env "http_proxy=$http_proxy" \
         --env "https_proxy=$https_proxy" \
         --env "no_proxy=$no_proxy" \
@@ -77,6 +77,7 @@ parse_params() {
     dont_register=
     become_root=
     privileged=
+    numa=
     token=${GITHUB_TOKEN:-}
     http_proxy=${http_proxy:-}
     https_proxy=${https_proxy:-}
@@ -86,6 +87,10 @@ parse_params() {
     while test ! -z ${1+x}
     do
         case "$1" in
+            --numa)
+                numa="--cpuset-cpus=$(lscpu|tr -d ' '|grep NUMAnode$2|awk -F: '{print $2}') --cpuset-mems=$2 --env OMP_NUM_THREADS=$(lscpu -e|awk -F' ' '{print $2}'|grep $2|wc -l)"
+                shift 2
+                ;;
             --privileged)
                 privileged="--privileged" 
                 shift
@@ -279,7 +284,7 @@ docker_launch() {
     docker_build \
         -t $iname "$agent_dir"
 
-    docker_run $privileged --network host \
+    docker_run $privileged $numa --network host \
         --hostname $name \
         $docker_devices \
         $become_root \
