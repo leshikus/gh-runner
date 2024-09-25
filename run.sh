@@ -17,7 +17,7 @@ dockerfile_add_device_groups() {
 }
 
 dockerfile_before_context() {
-    dockerfile_add_group docker
+    :
 }
 
 dockerfile_after_context() {
@@ -206,10 +206,12 @@ docker_clean() {
 }
 
 dockerfile_add_user() {
+    local id=${1:-5555}
+
     cat <<EOF
 FROM ubuntu:$(lsb_release -rs)
 
-RUN useradd -m --uid 1001 ghrunner
+RUN useradd -m --uid $id ghrunner
 ENV DEBIAN_FRONTEND="noninteractive"
 EOF
 }
@@ -260,7 +262,7 @@ EOF
 
 generate_dockerfile() {
     {
-        dockerfile_add_user
+        dockerfile_add_user 5556
         dockerfile_add_device_groups
         dockerfile_install_packages
         dockerfile_before_context
