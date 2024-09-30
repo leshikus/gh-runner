@@ -17,7 +17,7 @@ RUN set -ex; \
         intel-basekit \
         python3-pip python3-dev \
         cmake gcc g++ ninja-build git clang clang-format \
-        gh numactl \
+        gh numactl mysql-client \
         libomp-dev; \
     rm -rf /var/lib/apt/lists/*
 
